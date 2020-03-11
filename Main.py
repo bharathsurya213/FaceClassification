@@ -1,15 +1,15 @@
 # function for face detection with mtcnn
 from os import listdir
-from os.path import isdir
 
 from PIL import Image
 from numpy import asarray, savez_compressed
 from mtcnn.mtcnn import MTCNN
 
 # extract a single face from a given photograph
-def extract_face(filename, required_size=(160, 160)):
+def extract_face(path,filename, required_size=(160, 160)):
+	z = []
 	# load image from file
-	image = Image.open(filename)
+	image = Image.open(path)
 	# convert to RGB, if needed
 	image = image.convert('RGB')
 	# convert to array
@@ -18,61 +18,55 @@ def extract_face(filename, required_size=(160, 160)):
 	detector = MTCNN()
 	# detect faces in the image
 	results = detector.detect_faces(pixels)
+	faces_list = []
 	# extract the bounding box from the first face
-	x1, y1, width, height = results[0]['box']
-	# bug fix
-	x1, y1 = abs(x1), abs(y1)
-	x2, y2 = x1 + width, y1 + height
-	# extract the face
-	face = pixels[y1:y2, x1:x2]
-	# resize pixels to the model size
-	image = Image.fromarray(face)
-	image = image.resize(required_size)
-	face_array = asarray(image)
+	for i in range(len(results)):
+		z.append(filename)
+		x1, y1, width, height = results[i]['box']
+		# bug fix
+		x1, y1 = abs(x1), abs(y1)
+		x2, y2 = x1 + width, y1 + height
+		# extract the face
+		face = pixels[y1:y2, x1:x2]
+		# resize pixels to the model size
+		image = Image.fromarray(face)
+		image = image.resize(required_size)
+		face_array = asarray(image)
+		faces_list.append(face_array)
 	print(len(results))
-	return face_array
+	return faces_list,z
 
 
 def load_faces(directory):
-	faces = list()
+	faces_list = list()
 	# enumerate files
+	z=[]
 	for filename in listdir(directory):
 		# path
 		path = directory + filename
 		# get face
-		face = extract_face(path)
+		faces,z1 = extract_face(path,filename)
 		# store
-		faces.append(face)
-	return faces
+		faces_list.extend(faces)
+		z.extend(z1)
+	return faces_list,z
 
 
 # load a dataset that contains one subdir for each class that in turn contains images
 def load_dataset(directory):
 	X, y = list(), list()
 	# enumerate folders, on per class
-	for subdir in listdir(directory):
 		# path
-		path = directory + subdir + '/'
-		# skip any files that might be in the dir
-		if not isdir(path):
-			continue
+	path = directory + '/'
 		# load all faces in the subdirectory
-		faces = load_faces(path)
-		# create labels
-		labels = [subdir for _ in range(len(faces))]
-		# summarize progress
-		print('>loaded %d examples for class: %s' % (len(faces), subdir))
-		# store
-		X.extend(faces)
-		y.extend(labels)
-	return asarray(X), asarray(y)
+	faces,z = load_faces(path)
+	X.extend(faces)
+	return asarray(X), asarray(z)
 
 
 # load train dataset
-trainX, trainy = load_dataset('train/')
-print(trainX.shape, trainy.shape)
+trainX, trainz = load_dataset('train/')
 # load test dataset
-testX, testy = load_dataset('val/')
 # save arrays to one file in compressed format
-savez_compressed('5-celebrity-faces-dataset.npz', trainX, trainy, testX, testy)
+savez_compressed('5-celebrity-faces-dataset.npz', trainX, trainz)
 
